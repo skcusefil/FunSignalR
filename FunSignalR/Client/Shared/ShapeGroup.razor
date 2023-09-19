@@ -1,0 +1,52 @@
+﻿<g transform="translate(@X, @Y)"
+    cursor="@cursor"
+    @onmousedown=OnMouseDown
+    @onmouseup=OnMouseUp
+    @onmousedown:stopPropagation="true">
+    @ChildContent
+</g>
+
+@code {
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    [Parameter]
+    public int X { get; set; }
+
+    [Parameter]
+    public int Y { get; set; }
+
+    [Parameter]
+    public EventCallback<int> XChanged { get; set; }
+
+    [Parameter]
+    public EventCallback<int> YChanged { get; set; }
+
+    [Parameter]
+    public EventCallback<bool> IsMouseDownChanged { get; set; }
+
+    [Parameter]
+    public EventCallback<bool> IsUnlockChanged { get; set; }
+
+    string cursor = "grab";
+
+    bool _isMouseEnter = false;
+
+    int currentX;
+    int currentY;
+
+    int startX;
+    int StartY;
+
+    private void OnMouseDown(MouseEventArgs e)
+    {
+        IsMouseDownChanged.InvokeAsync(true);
+        Console.WriteLine("mouse down");
+    }
+
+    void OnMouseUp(MouseEventArgs e)
+    {
+        IsMouseDownChanged.InvokeAsync(false);
+        IsUnlockChanged.InvokeAsync(true);
+        Console.WriteLine("unlock");
+    }
+}

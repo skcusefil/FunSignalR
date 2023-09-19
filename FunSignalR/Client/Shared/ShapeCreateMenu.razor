@@ -1,0 +1,95 @@
+﻿@using FunSignalR.Shared.Models;
+<div class="createMenuBar">
+    <div>
+        <input @bind="@SelectedColor" type="color" id="head" name="head" />
+    </div>
+    <div>
+        <select class="material-symbols-outlined" bind="@_shapeType" name="hall" id="hall" @onchange="TypeSelect">
+            @foreach (var type in @ShapeTypes)
+            {
+                <option value="@type.ToLower()">@type.ToLower()</option>
+            }
+        </select>
+    </div>
+    <div>
+        create @_shapeType
+    </div>
+    <div>
+        <button @onclick="AddShape">Create</button>
+    </div>
+</div>
+
+<style>
+    .createMenuBar {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        gap: 20px;
+        margin-bottom: 20px;
+    }
+
+    select {
+        appearance: none;
+        background-color: transparent;
+        border: none;
+        padding: 5px;
+        cursor: pointer;
+        border: 2px solid rgb(25, 185, 207);
+    }
+
+    button {
+        background-color:green;
+        border: none;
+        height: 100%;
+        width: 100px;
+        border-radius: 5px;
+        color: white;
+        padding: 7px;
+    }
+
+    button:hover{
+            background-color: #40b740;
+            box-shadow: rgba(0, 0, 0, 0.35) 0px 5px 15px;
+        }
+    
+</style>
+
+@code {
+    [Parameter]
+    public Shape UserShape { get; set; }
+
+    [Parameter]
+    public EventCallback<string> UserShapeChanged { get; set; }
+
+    [Parameter]
+    public List<string> ShapeTypes { get; set; }
+
+    [Parameter]
+    public string SelectedColor { get; set; }
+
+    [Parameter]
+    public EventCallback<string> SelectedColorChanged { get; set; }
+
+    [Parameter]
+    public EventCallback<string> ShapeTypeChanged { get; set; }
+
+    string _shapeType = "";
+
+    protected override Task OnInitializedAsync()
+    {
+        _shapeType = ShapeTypes[0].ToLower();
+
+        return base.OnInitializedAsync();
+    }
+
+    private void TypeSelect(ChangeEventArgs e)
+    {
+        _shapeType = e.Value as string;
+    }
+
+    private async Task AddShape()
+    {
+        await SelectedColorChanged.InvokeAsync(SelectedColor);
+        await ShapeTypeChanged.InvokeAsync(_shapeType);
+    }
+}

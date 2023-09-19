@@ -1,0 +1,193 @@
+﻿@page "/"
+@using FunSignalR.Shared.Enums;
+@using FunSignalR.Shared.Extensions;
+@using FunSignalR.Shared.Models;
+@inject IJSRuntime JSRuntime
+@implements IAsyncDisposable
+@using FunSignalR.Shared.SignalRClient;
+@using Microsoft.AspNetCore.SignalR.Client
+@inject NavigationManager Navigation
+
+
+<ShapeCreateMenu @bind-SelectedColor=_selectedColor ShapeTypeChanged=AddShape ShapeTypes="@_shapeTypes"></ShapeCreateMenu>
+
+<div>
+    <svg id="svg" @onmousemove=OnMouseMove>
+        @foreach (var shape in _shapes)
+        {
+            <ShapeGroup @bind-X="@shape.X" @bind-Y="@shape.Y" IsMouseDownChanged="MouseDown" IsUnlockChanged="UnlockDrag">
+                @switch (shape.ShapeType)
+                {
+                    case ShapeType.Circle:
+                        <SVGCircle Color="@shape.Color"></SVGCircle>
+                        break;
+                    case ShapeType.Rectangle:
+                        <SVGRectangle Color="@shape.Color" Width="50" Height="50"></SVGRectangle>
+                        break;
+                    default:
+                        break;
+                }
+            </ShapeGroup>
+        }
+    </svg>
+</div>
+
+<style>
+    svg {
+        background-color: white;
+        width: 100%;
+        height: 500px;
+        border: 2px solid black;
+    }
+
+</style>
+
+@code {
+    private List<Shape> _shapes = new List<Shape>();
+    private string _selectedColor = "#e66465";
+    BoundingClientRect _startSvgBBox = new BoundingClientRect();
+    Shape _userShape;
+    bool _isMouseDown = false;
+    bool _isUnlock = false;
+    private List<string> messages = new List<string>();
+    string _shapeType = "";
+    private List<string> _shapeTypes = EnumExtension.GetDescriptions<ShapeType>().ToList();
+    ShapeHubClient _shapeHubClient;
+
+    #region override Methods
+    protected override async Task OnInitializedAsync()
+    {
+        _shapeType = _shapeTypes[0].ToLower();
+        _shapeHubClient = new ShapeHubClient(Navigation.ToAbsoluteUri("/shapeHub"));
+        await _shapeHubClient.StartAsync();
+        _shapeHubClient.ShapeRecieve += OnShapeRecieve;
+        _shapeHubClient.ShapeRecieveNewPosition += OnShapeRecieveNewPosition;
+    }
+
+
+    private void OnShapeRecieveNewPosition(object sender, ShapeEventArgs e)
+    {
+        var newShapeData = _shapes.FirstOrDefault(x => x.Id == e.Shape.Id);
+        newShapeData.X = e.Shape.X;
+        newShapeData.Y = e.Shape.Y;
+        StateHasChanged();
+    }
+
+    private void OnShapeRecieve(object sender, ShapeEventArgs e)
+    {
+        _shapes.Add(e.Shape);
+        StateHasChanged();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            var dotNetRef = DotNetObjectReference.Create(this);
+            await JSRuntime.InvokeVoidAsync("windowResize", dotNetRef);
+        }
+    }
+    #endregion
+
+    private void MouseDown(bool isMouseDown)
+    {
+        _isMouseDown = isMouseDown;
+    }
+
+    private void UnlockDrag(bool isUnlock)
+    {
+        _isUnlock = isUnlock;
+    }
+
+    private async Task AddShape(string shapeStr)
+    {
+        _startSvgBBox = await JSRuntime.InvokeAsync<BoundingClientRect>("getSVGBBox");
+
+        if (_userShape == null)
+        {
+            var random = new Random();
+            var randomPosX = random.Next(50, (int)_startSvgBBox.Width - 50);
+            var randomPosY = random.Next(50, (int)_startSvgBBox.Height - 50);
+
+            ShapeType enumValue;
+
+            string shapeType = char.ToUpper(shapeStr[0]) + shapeStr.Substring(1);
+
+            if (Enum.TryParse<ShapeType>(shapeType, out enumValue))
+            {
+                switch (enumValue)
+                {
+                    case ShapeType.Circle: 
+                        _userShape = new Circle() { Id = Guid.NewGuid().ToString(), Radius = 50, X = randomPosX, Y = randomPosY, Color = _selectedColor , ShapeType = ShapeType.Circle};
+                        break;
+                    case ShapeType.Rectangle:
+                        _userShape = new Rectangle() { Id = Guid.NewGuid().ToString(), Width = 50, Height = 50, X = randomPosX, Y = randomPosY, Color = _selectedColor, ShapeType = ShapeType.Rectangle };
+                        break;
+                    default: break;
+                }
+            }
+
+            if (_userShape is not null)
+            {
+                await _shapeHubClient.SendShape(_userShape);
+            }
+        }
+        else
+        {
+            //Show Notification Message "Not allow to pick"
+        }
+
+    }
+
+
+    private void OnMouseUP(MouseEventArgs e)
+    {
+        _isMouseDown = false;
+    }
+
+    private async Task OnMouseMove(MouseEventArgs e)
+    {
+
+        if (_shapes.Count > 0)
+        {
+            if (!_isMouseDown && _isUnlock)
+            {
+                Console.WriteLine("mouse not down");
+                return;
+            }
+            else if (_isMouseDown)
+            {
+                if (_userShape != null)
+                {
+                    var shapeToMove = _shapes.FirstOrDefault(x => x.Id == _userShape.Id);
+                    shapeToMove.X = (int)e.OffsetX;
+                    shapeToMove.Y = (int)e.OffsetY;
+                    await _shapeHubClient.UpdateShapePosition(shapeToMove);
+                    Console.WriteLine("mouse move");
+                }
+
+            }
+        }
+
+    }
+
+    #region Javascript Interop
+    [JSInvokable]
+    public void WindowResize(BoundingClientRect bbox)
+    {
+        Console.WriteLine(_startSvgBBox.Width);
+        if (bbox.Width < _startSvgBBox.Width)
+        {
+
+        }
+    }
+    #endregion
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_shapeHubClient is not null)
+        {
+            _shapeHubClient.DisposeAsync();
+        }
+    }
+}
