@@ -1,3 +1,5 @@
 # FunSignalR
 
-<video src='https://github.com/skcusefil/FunSignalR/blob/master/sample.mp4'/>
+Sample
+[![Demo Fun Signalr](https://github.com/skcusefil/FunSignalR/blob/master/sampleFunSignalr.gif)]
+
